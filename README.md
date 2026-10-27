@@ -32,7 +32,7 @@
 
 ### 線上體驗 (Live Demo)
 直接點擊由 GitHub Pages 代管的網址即可體驗：  
-`https://<your-github-username>.github.io/<repo-name>/`
+👉 **https://jensen2121-reaper.github.io/webcam-gesture-controller/**
 
 ### 本機執行 (Local Run)
 1. 下載或複製本專案庫：
