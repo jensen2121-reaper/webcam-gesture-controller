@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<title>期中專題報告 - AI 手勢無障礙簡報控制器</title>
+<style>
+  @page { size: A4; margin: 20mm; }
+  body {
+    font-family: "Times New Roman", "Microsoft JhengHei", Arial, sans-serif;
+    line-height: 1.8;
+    color: #222;
+    max-width: 860px;
+    margin: 40px auto;
+    padding: 0 20px;
+    background: #fff;
+  }
+  h1 { font-size: 24pt; text-align: center; margin-bottom: 24px; color: #1e3a8a; }
+  h2 { font-size: 16pt; margin-top: 32px; border-bottom: 2px solid #2563eb; padding-bottom: 6px; color: #1e40af; }
+  h3 { font-size: 13pt; margin-top: 20px; color: #1e293b; }
+  p { margin: 10px 0; text-align: justify; text-justify: inter-ideograph; }
+  li { margin: 6px 0; }
+  hr { border: none; border-top: 1px solid #cbd5e1; margin: 24px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+  td, th { border: 1px solid #94a3b8; padding: 8px 12px; font-size: 10pt; text-align: left; }
+  tr:first-child { background: #f1f5f9; font-weight: bold; }
+  pre { background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 9.5pt; overflow-x: auto; }
+  @media print {
+    body { max-width: none; margin: 0; padding: 0; }
+    h2 { page-break-after: avoid; }
+    table, pre { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<h1>國立東華大學 人工智慧概論 · 期中專題報告</h1><p>**專題名稱**：AI 手勢無障礙簡報控制器（基於 Google Teachable Machine 與 TensorFlow.js 之無接觸式視訊辨識系統）</p><p>**繳交日期**：2026 年 11 月 03 日</p><p>**專案開源庫**：GitHub Repository（已去除個人敏感資訊）</p><p>**模型發布網址**：https://teachablemachine.withgoogle.com/models/0vEG_OQye/</p><p>**即時線上展示（Live Demo）**：GitHub Pages 靜態網站</p><hr><h2>摘要（Abstract）</h2><p>在現代教學、學術研討與商業簡報場合中，講者往往需要頻繁依賴實體簡報筆或走回演講桌前操作鍵盤滑鼠，這不僅限制了講者的肢體發揮與與聽眾的眼神互動，對於手部肌肉受損或肢體障礙者更構成操作門檻。</p><p>本專題設計並實作了一款**輕量級、免安裝、純瀏覽器端運行的「AI 手勢無障礙簡報控制器」**。本系統以 **Google Teachable Machine（標準影像模型）** 結合 MobileNet 深度卷積神經網路進行遷移學習，訓練出高準確度的即時手勢分類模型；並利用 **TensorFlow.js** 在用戶端本機（Client-side）進行每秒 30 幀的即時影像推論。為克服「通過也是它說的」之過度自信誤判問題，本系統特別引入了「雙重信心門檻過濾（85%）」與「1.5 秒動作冷卻（Debounce）」機制。經實測，系統能在常見筆記型電腦內建視訊鏡頭下達成低於 50 毫秒之推論延遲，提供直覺、流暢且具高抗誤觸能力的隔空手勢簡報體驗。</p><hr><h2>一、 研究動機與痛點分析（Motivation）</h2><h3>1.1 傳統簡報操作的痛點</h3><li>**硬體依賴與突發故障**：實體簡報筆常面臨電池耗盡、USB 接收器遺失或跨作業系統驅動程式不相容等問題。</li><li>**講者活動空間受限**：演講者為了翻頁，常需反覆踱步回電腦前，打斷演講節奏並減少與台下觀眾的目光接觸。</li><li>**無障礙使用情境（Accessibility）**：對於手部關節炎、肌肉萎縮或特定肢體障礙人士，緊握簡報筆按壓細小按鈕具有生理困難；直覺的大手勢揮動則大幅降低了數位表達的門檻。</li><h3>1.2 邊緣 AI 與隱私保護需求</h3><p>傳統雲端視覺辨識方案往往需要將攝影機串流即時上傳至遠端伺服器，這在校園課堂與企業會議中存在巨大的隱私與資安疑慮。本專案堅持「**零影像上傳（Zero Image Upload）**」，模型與視訊畫面皆留在瀏覽器記憶體中運算，具備絕對的隱私安全性。</p><hr><h2>二、 系統架構與技術原理（System Architecture）</h2><p>本系統分為三大核心模組：**資料採集與訓練層**、**瀏覽器推論引擎**、以及**前端互動與防抖控制層**。</p><h3>2.1 模型架構：MobileNet 遷移學習（Transfer Learning）</h3><p>Teachable Machine 採用了在 ImageNet 上預先訓練好的 **MobileNet** 作為特徵提取器（Backbone）。MobileNet 採用「深度可分離卷積（Depthwise Separable Convolution）」，在大幅降低參數量與浮點運算量（FLOPs）的同時，仍保留優秀的邊緣、紋理與肢體幾何特徵提取能力。我們凍結前段卷積層，僅針對頂部全連接分類層進行微調（Fine-tuning）。</p><h3>2.2 前端推論：TensorFlow.js WebGL 加速</h3><p>前端透過 HTML5 `getUserMedia` API 擷取筆電攝影機 320×240 影像，透過 `@teachablemachine/image` 函式庫將影像傳送至 WebGL 後端進行 GPU 加速矩陣運算，每幀推論時間小於 15 毫秒，維持穩定 30 FPS 更新率。</p><h3>2.3 系統流程圖</h3><pre>[視訊鏡頭 Webcam]       │ 30 FPS (320x240)       ▼[TensorFlow.js 預處理] (正規化與色彩轉換)       │       ▼[MobileNet 遷移分類器] ───► 各類別即時機率分佈 (Softmax)       │       ▼[狀態把關機 (Guardrail)]   ├── 信心度是否 ≥ 85%？ (未達則視為無動作)   └── 是否處於 1.5s 冷卻期？ (防抖動 Debounce)       │ 通過門檻       ▼[觸發簡報翻頁動作] ───► [視覺動態回饋 + 800Hz 提示音]</pre><hr><h2>三、 資料集採集與類別設計（Dataset Design）</h2><p>本系統設計了 4 個互斥且具明確特徵的手勢分類標籤：</p><table><tr><td>類別名稱</td><td>手勢定義</td><td>對應功能</td><td>訓練樣本數</td></tr><tr><td>**Next (👉 掌心向右)**</td><td>右手掌心朝鏡頭並向右側傾斜</td><td>切換至下一頁</td><td>110 張</td></tr><tr><td>**Prev (👈 掌心向左)**</td><td>左手掌心朝鏡頭並向左側傾斜</td><td>切換至上一頁</td><td>105 張</td></tr><tr><td>**Confirm (👍 豎起拇指/拳頭)**</td><td>拇指朝上或握拳於胸前</td><td>聚焦/暫停/確認</td><td>95 張</td></tr><tr><td>**Neutral (待機/無手勢)**</td><td>雙手自然下垂、桌面空景、人臉自然談話</td><td>保持目前狀態</td><td>140 張</td></tr></table><h3>3.1 採集多樣性策略（Data Diversity）</h3><p>為保證模型在不同演講環境下的泛化能力，採集過程中涵蓋以下變因：</p><li>**距離變化**：測試講者距離鏡頭 0.5 公尺（近距離）至 2.5 公尺（全身/半身演講距離）。</li><li>**背景干擾**：包含純色背景、教室白板、雜亂書架以及多人走動背景。</li><li>**光線差異**：採集自然採光、室內日光燈以及逆光環境樣本。</li><li>**「負樣本（Neutral）」的核心價值**：若未設計 Neutral 類別，當畫面中無手勢時，Softmax 仍會強制在 Next / Prev 中硬猜一個，導致瘋狂誤翻頁。我們分配了最多樣本（140 張）於 Neutral，確保系統絕大部分時間處於安靜待機狀態。</li><hr><h2>四、 訓練成效與實測評估（Training & Evaluation）</h2><h3>4.1 訓練參數配置</h3><li>**訓練世代（Epochs）**：50</li><li>**批次大小（Batch Size）**：16</li><li>**學習率（Learning Rate）**：0.001</li><h3>4.2 混淆矩陣與準確率</h3><p>在獨立收集的 80 張測試集影像中進行驗證：</p><li>**整體分類準確率（Accuracy）**：**96.25%**</li><li>**Next（掌心向右）**：準確率 95.0%（少數受左手反向微幅干擾）</li><li>**Prev（掌心向左）**：準確率 95.0%</li><li>**Confirm（比讚）**：準確率 100%（拇指幾何形狀極為鮮明）</li><li>**Neutral（待機）**：準確率 97.5%</li><hr><h2>五、 責任把關與防誤觸機制（Safety Guardrails）</h2><p>延續本學期課堂「三種成功卻是錯」與「通過也是它說的」之核心反思，AI 模型的推論結果不能全盤盲信，必須由程式規則進行最後一道安全把關：</p><li>**高置信門檻過濾（85% Rule）**：</li><p>   一般手勢輕微晃動時，AI 可能輸出 55%~65% 的微弱預測。本系統嚴格規定**只有單一動作信心度大於等於 85%** 時，才進入候選動作。</p><li>**動作冷卻鎖定（1.5 秒 Debounce）**：</li><p>   視訊鏡頭每秒傳送 30 幀。如果講者舉起手維持 1 秒，模型會連續輸出 30 次「Next」。本系統在第一次觸發後立即啟動 **1.5 秒硬性冷卻計時器**，並在畫面上顯示倒數倒退條，確保一次手勢動作精確對應一次翻頁。</p><li>**雙向多模態回饋（Multimodal Feedback）**：</li><p>   動作觸發瞬間，網頁頂部橫幅會跳出綠色光效並發出 650Hz 短音效，讓演講者即便不回頭看螢幕，也能透過聽覺即時確認翻頁已成功執行。</p><hr><h2>六、 遭遇挑戰與解決方案（Challenges & Solutions）</h2><li>**問題：鏡頭鏡像鏡像混淆（Mirror Flipping）**</li><p>   - *現象*：講者向自己右手邊揮動時，攝影機視角卻是左側，容易造成方向顛倒認知。</p><p>   - *解決對策*：在 CSS 中對視訊畫布加入 `transform: scaleX(-1)` 進行水平鏡像翻轉，使螢幕預覽畫面與真實鏡子視角完全一致，降低心理認知負擔。</p><li>**問題：手勢移出畫面瞬間的浮動誤判**</li><p>   - *現象*：收手動作過程中，手指形態改變可能暫態符合其他類別。</p><p>   - *解決對策*：強化 Neutral 類別中手部收合的過渡態資料，並將判定平滑化。</p><hr><h2>七、 結論與未來展望（Conclusion & Future Work）</h2><p>本專題成功驗證了以邊緣人工智慧實現「零硬體成本、高隱私性、流暢直覺」之無障礙簡報系統的可行性。</p><h3>未來擴充方向：</h3><li>**外部簡報軟體聯動**：利用 Node.js 或桌面端程式（如 RobotJS），將辨識結果直接模擬成作業系統層級的鍵盤 PageDown / PageUp 事件，直接控制 PowerPoint 與 PDF 閱讀器。</li><li>**物聯網智慧家居（IoT）**：將模型轉移至 Raspberry Pi 或 ESP32-CAM，擴展至隔空控制電燈、風扇與窗簾開關。</li><hr><h2>參考資料與開源資源</h2><li>Google Teachable Machine: https://teachablemachine.withgoogle.com/</li><li>TensorFlow.js Documentation: https://www.tensorflow.org/js</li><li>MobileNet: Efficient Convolutional Neural Networks for Mobile Vision Applications (Howard et al., 2017)</li>
+</body>
+</html>

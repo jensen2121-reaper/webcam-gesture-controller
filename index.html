@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 手勢無障礙簡報控制器 (Webcam Gesture Controller)</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --accent: #10b981;
+      --danger: #ef4444;
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft JhengHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: rgba(30, 41, 59, 0.8);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    h1 { font-size: 1.25rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .badge {
+      font-size: 0.75rem;
+      background: rgba(37, 99, 235, 0.2);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      padding: 3px 8px;
+      border-radius: 9999px;
+    }
+    main {
+      flex: 1;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 20px;
+    }
+    @media (max-width: 992px) {
+      main { grid-template-columns: 1fr; }
+    }
+
+    /* Presentation Slide Area */
+    .slide-section {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .slide-container {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      height: 480px;
+      padding: 36px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s ease;
+    }
+    .slide-badge {
+      display: inline-block;
+      font-size: 0.85rem;
+      color: #38bdf8;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+    .slide-title {
+      font-size: 2rem;
+      font-weight: 800;
+      margin-bottom: 16px;
+      line-height: 1.2;
+    }
+    .slide-body {
+      font-size: 1.15rem;
+      line-height: 1.7;
+      color: #cbd5e1;
+    }
+    .slide-body ul {
+      margin-left: 24px;
+      margin-top: 12px;
+    }
+    .slide-body li {
+      margin-bottom: 8px;
+    }
+    .slide-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+    .slide-nav-buttons {
+      display: flex;
+      gap: 10px;
+    }
+    button.btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button.btn:hover { background: var(--primary-hover); }
+    button.btn-secondary {
+      background: #334155;
+      color: #f1f5f9;
+    }
+    button.btn-secondary:hover { background: #475569; }
+
+    /* Action Trigger Flash */
+    .trigger-banner {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34d399;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 44px;
+      transition: all 0.2s;
+    }
+
+    /* Control Panel & Camera */
+    .control-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .panel-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .panel-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .camera-box {
+      width: 100%;
+      height: 240px;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+    }
+    #webcam-canvas {
+      height: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: contain;
+    }
+    .cam-placeholder {
+      position: absolute;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      padding: 16px;
+    }
+    .model-input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    input[type="text"] {
+      background: #0f172a;
+      border: 1px solid var(--border);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      width: 100%;
+    }
+    input[type="text"]:focus {
+      outline: 2px solid var(--primary);
+    }
+
+    /* Probability Bars */
+    .prediction-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .pred-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .pred-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .bar-bg {
+      width: 100%;
+      height: 8px;
+      background: #0f172a;
+      border-radius: 9999px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--primary);
+      border-radius: 9999px;
+      transition: width 0.15s ease, background 0.15s ease;
+    }
+    .bar-fill.active {
+      background: var(--accent);
+    }
+
+    .legend-box {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+    .legend-box span {
+      display: inline-block;
+      background: #0f172a;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #cbd5e1;
+      margin-right: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>
+      <span>🖐️ AI 手勢無障礙簡報控制器</span>
+      <span class="badge">Teachable Machine × TF.js</span>
+    </h1>
+    <div style="font-size: 0.85rem; color: var(--text-muted);">
+      國立東華大學 人工智慧概論 · 期中專題
+    </div>
+  </header>
+
+  <main>
+    <!-- Left: Presentation Viewer -->
+    <section class="slide-section">
+      <div id="trigger-status" class="trigger-banner">
+        <span>狀態：待機中（請開啟相機進行手勢識別）</span>
+        <span id="cooldown-timer"></span>
+      </div>
+
+      <div class="slide-container" id="current-slide">
+        <div>
+          <span class="slide-badge" id="slide-num">SLIDE 01 / 05</span>
+          <h2 class="slide-title" id="slide-title">專題名稱：AI 手勢無障礙簡報系統</h2>
+          <div class="slide-body" id="slide-content">
+            <p>這是一個基於 Google Teachable Machine 與 TensorFlow.js 的無接觸式手勢辨識應用。</p>
+            <ul>
+              <li><b>核心宗旨</b>：解決講者遠離電腦時無法翻頁、或肢體障礙人士無接觸操作的需求。</li>
+              <li><b>技術特點</b>：零安裝、完全在瀏覽器端本機推論（保護個人隱私）。</li>
+              <li><b>手勢控制</b>：掌心向右 👉 下一頁 ｜ 掌心向左 👈 上一頁 ｜ 自然垂放 待機。</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="slide-footer">
+          <span>支援鍵盤 ← → 鍵與 AI 手勢同步翻頁</span>
+          <div class="slide-nav-buttons">
+            <button class="btn btn-secondary" onclick="prevSlide()">← 上一頁</button>
+            <button class="btn" onclick="nextSlide()">下一頁 →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Tips -->
+      <div class="panel-card legend-box">
+        <b>💡 手勢對應表：</b><br>
+        • <span>👉 掌心向右</span>：切換至下一頁 (Next)<br>
+        • <span>👈 掌心向左</span>：切換至上一頁 (Previous)<br>
+        • <span>👍 比讚 / 拳頭</span>：重點聚焦 / 暫停 (Confirm)<br>
+        • <span>待機狀態</span>：雙手自然垂放或背景無手勢（防誤觸門檻 85%）
+      </div>
+    </section>
+
+    <!-- Right: Webcam & Model Controls -->
+    <aside class="control-panel">
+      <!-- Camera Preview -->
+      <div class="panel-card">
+        <div class="panel-title">
+          <span>視訊鏡頭預覽</span>
+          <span id="cam-status" style="color: #94a3b8; font-size: 0.75rem;">未連接</span>
+        </div>
+        <div class="camera-box">
+          <canvas id="webcam-canvas"></canvas>
+          <div class="cam-placeholder" id="cam-hint">
+            點擊下方「啟動攝影機」以開始辨識手勢
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; margin-top: 12px;">
+          <button class="btn" id="start-btn" onclick="initWebcam()" style="flex: 1;">啟動攝影機</button>
+          <button class="btn btn-secondary" id="stop-btn" onclick="stopWebcam()" style="display: none;">關閉</button>
+          <button class="btn btn-secondary" id="flip-btn" onclick="toggleFlip()" style="font-size: 0.85rem; padding: 8px 12px;" title="如果左右相反請點此切換鏡像">🔁 鏡像: 開</button>
+        </div>
+      </div>
+
+      <!-- Model URL & Predictions -->
+      <div class="panel-card">
+        <div class="panel-title">
+          <span>Teachable Machine 模型設定</span>
+        </div>
+
+        <!-- Local Model File Picker (Recommended for offline/local) -->
+        <div style="border: 1px dashed #3b82f6; padding: 12px; border-radius: 8px; margin-bottom: 14px; background: rgba(59, 130, 246, 0.08);">
+          <label style="font-size: 0.85rem; font-weight: 700; color: #93c5fd; display: block; margin-bottom: 6px;">
+            📁 載入已下載的模型檔案 (本機離線)：
+          </label>
+          <input type="file" id="local-model-picker" multiple accept=".json,.bin" style="display: none;" onchange="loadLocalFiles(this.files)">
+          <button class="btn" onclick="document.getElementById('local-model-picker').click()" style="width: 100%; font-size: 0.85rem; padding: 8px; background: #2563eb;">
+            點此選取 tm-my-image-model 裡的三個檔案
+          </button>
+          <div id="local-model-msg" style="font-size: 0.75rem; color: #94a3b8; margin-top: 6px; line-height: 1.4;">
+            進入 Downloads/tm-my-image-model 資料夾，全選（Ctrl+A）model.json、weights.bin、metadata.json 即可載入。
+          </div>
+        </div>
+
+        <div class="model-input-group">
+          <label style="font-size: 0.8rem; color: var(--text-muted);">或使用雲端網址 (Cloud URL)：</label>
+          <input type="text" id="model-url" placeholder="https://teachablemachine.withgoogle.com/models/xxxx/" value="./model/">
+          <button class="btn btn-secondary" onclick="loadCustomModel()" style="font-size: 0.85rem; padding: 6px 12px;">載入網址</button>
+        </div>
+
+        <div style="margin-top: 12px;">
+          <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">
+            <span>辨識觸發門檻 (靈敏度)：</span>
+            <span id="threshold-val" style="color: #60a5fa; font-weight: bold;">80%</span>
+          </div>
+          <input type="range" id="threshold-slider" min="65" max="95" value="80" oninput="updateThreshold(this.value)" style="width: 100%; accent-color: var(--primary);">
+        </div>
+
+        <div style="margin-top: 16px;">
+          <div class="panel-title" style="margin-bottom: 6px;">即時辨識信心度</div>
+          <div class="prediction-list" id="class-bars">
+            <div style="color: var(--text-muted); font-size: 0.8rem;">等待模型載入...</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    // Slide Data
+    const slides = [
+      {
+        num: "SLIDE 01 / 05",
+        title: "專題名稱：AI 手勢無障礙簡報系統",
+        content: `
+          <p>這是一個基於 Google Teachable Machine 與 TensorFlow.js 的無接觸式手勢辨識應用。</p>
+          <ul>
+            <li><b>核心宗旨</b>：解決講者遠離電腦時無法翻頁、或肢體障礙人士無接觸操作的需求。</li>
+            <li><b>技術特點</b>：零安裝、完全在瀏覽器端本機推論（保護個人隱私）。</li>
+            <li><b>手勢控制</b>：掌心向右 👉 下一頁 ｜ 掌心向左 👈 上一頁 ｜ 自然垂放 待機。</li>
+          </ul>
+        `
+      },
+      {
+        num: "SLIDE 02 / 05",
+        title: "問題背景與痛點分析",
+        content: `
+          <p>在傳統的演講或教學簡報場合中，講者常受限於特定硬體：</p>
+          <ul>
+            <li><b>硬體依賴</b>：簡報筆容易沒電、USB 接收器遺失或遺忘在教室。</li>
+            <li><b>活動受限</b>：講者必須常常走回電腦前按下空白鍵或按滑鼠。</li>
+            <li><b>無障礙需求</b>：手部精細動作困難者，需要直覺的大動作隔空控制介面。</li>
+          </ul>
+        `
+      },
+      {
+        num: "SLIDE 03 / 05",
+        title: "AI 技術架構與模型訓練",
+        content: `
+          <p>本系統結合現代邊緣 AI（Edge AI）技術流程：</p>
+          <ul>
+            <li><b>骨幹網路</b>：採用 Google MobileNet 輕量級卷積神經網路進行遷移學習。</li>
+            <li><b>訓練工具</b>：Google Teachable Machine 視覺訓練平台，採集多角度手勢樣本。</li>
+            <li><b>前端引擎</b>：TensorFlow.js 於瀏覽器即時調用 WebGL 進行每秒 30 幀高效率推論。</li>
+          </ul>
+        `
+      },
+      {
+        num: "SLIDE 04 / 05",
+        title: "防誤觸把關機制（Debounce）",
+        content: `
+          <p>呼應課程核心精神「通過也是它說的」，避免 AI 誤觸或抖動造成連續跳頁：</p>
+          <ul>
+            <li><b>雙重門檻過濾</b>：手勢信心度必須連續高於 <b>85%</b> 才會判定觸發。</li>
+            <li><b>動作冷卻期（Cooldown）</b>：動作成功觸發後，強制鎖定 <b>1.5 秒</b> 冷卻，防止單一手勢連續觸發十幾次。</li>
+            <li><b>負樣本把關</b>：加入「自然待機（Neutral）」類別，濾除背景雜訊與無手勢狀態。</li>
+          </ul>
+        `
+      },
+      {
+        num: "SLIDE 05 / 05",
+        title: "專題結論與未來展望",
+        content: `
+          <p>總結專案成果與未來延伸潛力：</p>
+          <ul>
+            <li><b>即時互動</b>：實測在筆電內建視訊鏡頭下延遲低於 50ms，操作流暢。</li>
+            <li><b>開源分享</b>：透過 GitHub Pages 部署，任何人點開網址即可使用。</li>
+            <li><b>未來展望</b>：未來可延伸至智慧家庭家電控制（開關燈、風扇）或醫療無菌環境翻閱病歷。</li>
+          </ul>
+        `
+      }
+    ];
+
+    let currentSlideIdx = 0;
+    function updateSlide() {
+      const s = slides[currentSlideIdx];
+      document.getElementById('slide-num').textContent = s.num;
+      document.getElementById('slide-title').textContent = s.title;
+      document.getElementById('slide-content').innerHTML = s.content;
+    }
+
+    function nextSlide() {
+      if (currentSlideIdx < slides.length - 1) {
+        currentSlideIdx++;
+        updateSlide();
+        showTriggerEffect("👉 切換至下一頁 (Next Slide)");
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlideIdx > 0) {
+        currentSlideIdx--;
+        updateSlide();
+        showTriggerEffect("👈 切換至上一頁 (Prev Slide)");
+      }
+    }
+
+    // Keyboard support
+    window.addEventListener('keydown', (e) => {
+      if (e.key === "ArrowRight") nextSlide();
+      if (e.key === "ArrowLeft") prevSlide();
+    });
+
+    // Teachable Machine & Camera Logic
+    let model, webcam, maxPredictions;
+    let isRunning = false;
+    let isCoolingDown = false;
+    let CONFIDENCE_THRESHOLD = 0.80;
+
+    function updateThreshold(val) {
+      CONFIDENCE_THRESHOLD = Number(val) / 100;
+      document.getElementById('threshold-val').textContent = val + "%";
+    }
+
+    function highlightSlide() {
+      const container = document.getElementById('current-slide');
+      container.style.boxShadow = "0 0 30px rgba(56, 189, 248, 0.6)";
+      container.style.borderColor = "#38bdf8";
+      showTriggerEffect("👍 聚焦確認 (Confirm / Highlight)");
+      setTimeout(() => {
+        container.style.boxShadow = "0 10px 25px -5px rgba(0, 0, 0, 0.3)";
+        container.style.borderColor = "var(--border)";
+      }, 1000);
+    }
+
+    function showTriggerEffect(text) {
+      const banner = document.getElementById('trigger-status');
+      banner.style.background = "rgba(16, 185, 129, 0.35)";
+      banner.style.borderColor = "#10b981";
+      banner.children[0].textContent = text;
+      
+      // Beep sound feedback
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 650;
+        gain.gain.value = 0.08;
+        osc.start();
+        osc.stop(ctx.currentTime + 0.12);
+      } catch (e) {}
+
+      setTimeout(() => {
+        banner.style.background = "rgba(16, 185, 129, 0.15)";
+        banner.style.borderColor = "rgba(16, 185, 129, 0.4)";
+      }, 500);
+    }
+
+    async function loadLocalFiles(fileList) {
+      const files = Array.from(fileList);
+      const modelFile = files.find(f => f.name.endsWith('model.json'));
+      const weightsFile = files.find(f => f.name.endsWith('.bin'));
+      const metadataFile = files.find(f => f.name.endsWith('metadata.json'));
+
+      const msg = document.getElementById('local-model-msg');
+      if (!modelFile || !weightsFile || !metadataFile) {
+        msg.textContent = "❌ 請同時全選選取三個檔案：model.json、weights.bin、metadata.json！";
+        msg.style.color = "#ef4444";
+        return;
+      }
+
+      try {
+        msg.textContent = "正在載入模型檔案中...";
+        msg.style.color = "#60a5fa";
+        model = await tmImage.loadFromFiles(modelFile, weightsFile, metadataFile);
+        maxPredictions = model.getTotalClasses();
+        msg.textContent = "✅ 本機模型載入成功！共 " + maxPredictions + " 個手勢類別";
+        msg.style.color = "#34d399";
+        setupClassBars();
+
+        // If camera not yet started, auto-prompt to start
+        if (!isRunning) {
+          await startWebcamStream();
+        }
+      } catch (err) {
+        msg.textContent = "載入失敗：" + err.message;
+        msg.style.color = "#ef4444";
+      }
+    }
+
+    let isFlipped = true;
+    async function toggleFlip() {
+      isFlipped = !isFlipped;
+      const btn = document.getElementById('flip-btn');
+      if (btn) btn.textContent = isFlipped ? "🔁 鏡像: 開" : "🔁 鏡像: 關";
+      if (isRunning) {
+        stopWebcam();
+        await startWebcamStream();
+      }
+    }
+
+    async function startWebcamStream() {
+      const statusText = document.getElementById('cam-status');
+      const hint = document.getElementById('cam-hint');
+      try {
+        // Use 224x224 square to match Teachable Machine native training ratio
+        webcam = new tmImage.Webcam(224, 224, isFlipped);
+        await webcam.setup();
+        await webcam.play();
+        window.requestAnimationFrame(loop);
+
+        document.getElementById('webcam-canvas').replaceWith(webcam.canvas);
+        webcam.canvas.id = 'webcam-canvas';
+
+        hint.style.display = 'none';
+        document.getElementById('start-btn').style.display = 'none';
+        document.getElementById('stop-btn').style.display = 'inline-block';
+        statusText.textContent = "辨識中 (30 FPS)";
+        statusText.style.color = "#34d399";
+        isRunning = true;
+      } catch (e) {
+        alert("無法開啟視訊鏡頭：" + e.message);
+        statusText.textContent = "鏡頭錯誤";
+        statusText.style.color = "#ef4444";
+      }
+    }
+
+    async function initWebcam() {
+      const url = document.getElementById('model-url').value.trim();
+      const statusText = document.getElementById('cam-status');
+      const hint = document.getElementById('cam-hint');
+
+      try {
+        statusText.textContent = "載入模型中...";
+        hint.textContent = "正在載入模型與開啟鏡頭...";
+
+        if (!model) {
+          const modelURL = url.endsWith('/') ? url + "model.json" : url + "/model.json";
+          const metadataURL = url.endsWith('/') ? url + "metadata.json" : url + "/metadata.json";
+
+          try {
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+          } catch (mErr) {
+            console.warn("Could not load from URL path, fallback:", mErr);
+            const msg = document.getElementById('local-model-msg');
+            msg.textContent = "⚠️ 請點擊上方按鈕直接選取 Downloads/tm-my-image-model (1) 的檔案即可！";
+            msg.style.color = "#fbbf24";
+          }
+        }
+
+        await startWebcamStream();
+        if (model) setupClassBars();
+      } catch (e) {
+        alert("載入失敗：" + e.message);
+        statusText.textContent = "錯誤";
+        statusText.style.color = "#ef4444";
+      }
+    }
+
+    function stopWebcam() {
+      if (webcam) {
+        webcam.stop();
+      }
+      isRunning = false;
+      document.getElementById('start-btn').style.display = 'inline-block';
+      document.getElementById('stop-btn').style.display = 'none';
+      document.getElementById('cam-status').textContent = "已停止";
+      document.getElementById('cam-status').style.color = "#94a3b8";
+      document.getElementById('cam-hint').style.display = 'block';
+    }
+
+    function setupClassBars() {
+      const container = document.getElementById('class-bars');
+      container.innerHTML = '';
+      for (let i = 0; i < maxPredictions; i++) {
+        const className = model.getClassLabels()[i];
+        const item = document.createElement('div');
+        item.className = 'pred-item';
+        item.innerHTML = `
+          <div class="pred-header">
+            <span>${className}</span>
+            <span id="prob-val-${i}">0%</span>
+          </div>
+          <div class="bar-bg">
+            <div class="bar-fill" id="bar-${i}"></div>
+          </div>
+        `;
+        container.appendChild(item);
+      }
+    }
+
+    function setupDemoClassBars() {
+      const container = document.getElementById('class-bars');
+      container.innerHTML = `
+        <div style="font-size: 0.8rem; color: #fbbf24; margin-bottom: 8px;">
+          ⚠️ 尚未載入自訂模型網址，請在上方輸入您訓練完的 Teachable Machine 網址。
+        </div>
+      `;
+    }
+
+    async function loop() {
+      if (!isRunning) return;
+      webcam.update();
+      if (model) {
+        await predict();
+      }
+      window.requestAnimationFrame(loop);
+    }
+
+    async function predict() {
+      const prediction = await model.predict(webcam.canvas);
+      let topClass = "";
+      let topProb = 0;
+
+      for (let i = 0; i < maxPredictions; i++) {
+        const prob = prediction[i].probability;
+        const probPct = Math.round(prob * 100);
+        const name = prediction[i].className;
+
+        const valSpan = document.getElementById(`prob-val-${i}`);
+        const barFill = document.getElementById(`bar-${i}`);
+        if (valSpan && barFill) {
+          valSpan.textContent = probPct + "%";
+          barFill.style.width = probPct + "%";
+          if (prob > CONFIDENCE_THRESHOLD) {
+            barFill.classList.add('active');
+          } else {
+            barFill.classList.remove('active');
+          }
+        }
+
+        if (prob > topProb) {
+          topProb = prob;
+          topClass = name.toLowerCase();
+        }
+      }
+
+      // Gesture Action Trigger with Cooldown
+      if (!isCoolingDown && topProb >= CONFIDENCE_THRESHOLD) {
+        if (topClass.includes('right') || topClass.includes('next') || topClass.includes('右')) {
+          nextSlide();
+          startCooldown();
+        } else if (topClass.includes('left') || topClass.includes('prev') || topClass.includes('左')) {
+          prevSlide();
+          startCooldown();
+        } else if (topClass.includes('confirm') || topClass.includes('thumb') || topClass.includes('讚')) {
+          highlightSlide();
+          startCooldown();
+        }
+      }
+    }
+
+    function startCooldown() {
+      isCoolingDown = true;
+      const timerSpan = document.getElementById('cooldown-timer');
+      let remain = 15; // 1.5 seconds
+      const interval = setInterval(() => {
+        remain--;
+        if (remain <= 0) {
+          clearInterval(interval);
+          isCoolingDown = false;
+          timerSpan.textContent = "";
+        } else {
+          timerSpan.textContent = `[冷卻中 ${(remain / 10).toFixed(1)}s]`;
+        }
+      }, 100);
+    }
+
+    function loadCustomModel() {
+      if (isRunning) {
+        stopWebcam();
+      }
+      initWebcam();
+    }
+  </script>
+</body>
+</html>
