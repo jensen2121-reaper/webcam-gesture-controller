@@ -6,6 +6,12 @@
   <title>AI 手勢無障礙簡報控制器 (Webcam Gesture Controller)</title>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+  </script>
   <style>
     :root {
       --primary: #2563eb;
@@ -317,16 +323,20 @@
         <!-- Web URL Inputs -->
         <div id="web-inputs" style="display: none; flex-direction: column; gap: 8px; margin-top: 6px;">
           <label style="font-size: 0.85rem; font-weight: 600; color: #38bdf8;">
-            🔗 請在此處貼上您的簡報網址 (Google Slides / Canva / 任何網頁簡報)：
+            🔗 嵌入線上簡報網址：
           </label>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <input type="text" id="web-slide-url" placeholder="例如: https://docs.google.com/presentation/d/e/2PACX-.../embed 或 Canva 簡報分享網址" style="flex: 1; padding: 8px 12px; font-size: 0.85rem; min-width: 260px; border: 1px solid #38bdf8;">
+            <input type="text" id="web-slide-url" placeholder="例如: https://docs.google.com/presentation/d/.../embed" style="flex: 1; padding: 8px 12px; font-size: 0.85rem; min-width: 260px; border: 1px solid #38bdf8;">
             <button class="btn" onclick="loadWebSlide()" style="font-size: 0.85rem; padding: 8px 16px; background: #0284c7;">
-              立即載入簡報
+              立即載入
             </button>
           </div>
-          <div style="font-size: 0.75rem; color: var(--text-muted);">
-            💡 提示：在 Google 簡報中點擊「檔案」→「分享」→「發布到網路」→「嵌入」，複製裡面的網址貼上即可！
+          <div style="font-size: 0.75rem; color: #f59e0b; line-height: 1.5; background: rgba(245, 158, 11, 0.1); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.3);">
+            ⚠️ <b>為什麼 Canva 會顯示「拒絕連線」？</b><br>
+            Canva 與部分網站設有跨網域安全保護，嚴格禁止其他網站以視窗嵌入。<br>
+            <b>【最佳解決方案】</b>：<br>
+            1. <b>方法一 (推薦)</b>：在 Canva 點「分享」→「下載」→ 選「<b>PDF (標準)</b>」，然後點擊上方「<b>📄 載入本機 PDF 簡報</b>」載入，手勢即可 100% 完美換頁！<br>
+            2. <b>方法二</b>：雙擊啟動 <code>start-desktop-bridge.cmd</code>，將 Canva 全螢幕打開，揮手自動模擬鍵盤翻頁！
           </div>
         </div>
 
@@ -337,12 +347,28 @@
           </label>
           <input type="file" id="pdf-upload" accept="application/pdf" onchange="loadCustomPDF(this.files)" style="font-size: 0.85rem;">
           <div style="font-size: 0.75rem; color: var(--text-muted); width: 100%;">
-            選取後會直接在下方視窗內開啟，對著鏡頭揮手即可翻頁！
+            ✅ 已內建 PDF.js 引擎，選取後可直接透過 <b>👉 掌心向右</b> 與 <b>👈 掌心向左</b> 手勢即時翻頁！
           </div>
         </div>
       </div>
 
-      <!-- External Presentation View (PDF / Iframe) -->
+      <!-- Dedicated PDF Render Container (with PDF.js for 100% full gesture control) -->
+      <div id="pdf-render-box" style="display: none; height: 500px; border-radius: 14px; overflow-y: auto; overflow-x: hidden; border: 2px solid #10b981; background: #0f172a; margin-bottom: 14px; position: relative;">
+        <div style="position: sticky; top: 0; background: rgba(30, 41, 59, 0.95); backdrop-filter: blur(8px); padding: 8px 16px; display: flex; justify-content: space-between; align-items: center; z-index: 10; border-bottom: 1px solid var(--border);">
+          <span id="pdf-page-indicator" style="font-size: 0.85rem; font-weight: 700; color: #34d399;">
+            📄 請先在上方選取 PDF 檔案
+          </span>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary" onclick="prevPDFPage()" style="padding: 4px 10px; font-size: 0.8rem;">← 上一頁</button>
+            <button class="btn btn-secondary" onclick="nextPDFPage()" style="padding: 4px 10px; font-size: 0.8rem;">下一頁 →</button>
+          </div>
+        </div>
+        <div style="display: flex; justify-content: center; padding: 16px;">
+          <canvas id="pdf-canvas" style="max-width: 100%; border-radius: 6px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);"></canvas>
+        </div>
+      </div>
+
+      <!-- External Web Presentation View (Iframe) -->
       <div id="external-slide-box" style="display: none; height: 500px; border-radius: 14px; overflow: hidden; border: 2px solid #38bdf8; background: #000; margin-bottom: 14px;">
         <iframe id="external-frame" src="" style="width: 100%; height: 100%; border: none;"></iframe>
       </div>
@@ -530,6 +556,12 @@
     let currentSlideIdx = 0;
     let currentSlideMode = 'default';
 
+    // PDF.js Variables
+    let pdfDoc = null;
+    let pdfPageNum = 1;
+    let pdfRendering = false;
+    let pdfPagePending = null;
+
     function switchSlideMode(mode) {
       currentSlideMode = mode;
       const defaultBtn = document.getElementById('tab-default');
@@ -539,6 +571,7 @@
       const pdfInputs = document.getElementById('pdf-inputs');
       const webInputs = document.getElementById('web-inputs');
       const defaultSlide = document.getElementById('current-slide');
+      const pdfBox = document.getElementById('pdf-render-box');
       const extBox = document.getElementById('external-slide-box');
 
       defaultBtn.style.background = '#334155';
@@ -551,6 +584,7 @@
         if (pdfInputs) pdfInputs.style.display = 'none';
         if (webInputs) webInputs.style.display = 'none';
         defaultSlide.style.display = 'flex';
+        if (pdfBox) pdfBox.style.display = 'none';
         extBox.style.display = 'none';
       } else if (mode === 'pdf') {
         pdfBtn.style.background = 'var(--primary)';
@@ -558,23 +592,91 @@
         if (pdfInputs) pdfInputs.style.display = 'flex';
         if (webInputs) webInputs.style.display = 'none';
         defaultSlide.style.display = 'none';
-        extBox.style.display = 'block';
+        if (pdfBox) pdfBox.style.display = 'block';
+        extBox.style.display = 'none';
       } else if (mode === 'web') {
         webBtn.style.background = 'var(--primary)';
         if (defaultHint) defaultHint.style.display = 'none';
         if (pdfInputs) pdfInputs.style.display = 'none';
         if (webInputs) webInputs.style.display = 'flex';
         defaultSlide.style.display = 'none';
+        if (pdfBox) pdfBox.style.display = 'none';
         extBox.style.display = 'block';
       }
     }
 
     function loadCustomPDF(files) {
-      if (files && files[0]) {
-        const fileURL = URL.createObjectURL(files[0]);
-        document.getElementById('external-frame').src = fileURL;
-        showTriggerEffect("📄 已載入自訂 PDF 簡報");
+      if (!files || !files[0]) return;
+      const file = files[0];
+      const indicator = document.getElementById('pdf-page-indicator');
+      indicator.textContent = "⏳ 正在解析 PDF 檔案...";
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const typedArray = new Uint8Array(e.target.result);
+        if (!window.pdfjsLib) {
+          alert("PDF 模組載入中，請稍候重試");
+          return;
+        }
+        pdfjsLib.getDocument(typedArray).promise.then(pdf => {
+          pdfDoc = pdf;
+          pdfPageNum = 1;
+          renderPDFPage(pdfPageNum);
+          showTriggerEffect(`📄 成功載入 PDF (共 ${pdfDoc.numPages} 頁)`);
+        }).catch(err => {
+          indicator.textContent = "❌ PDF 載入失敗: " + err.message;
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function renderPDFPage(num) {
+      if (!pdfDoc) return;
+      pdfRendering = true;
+      pdfDoc.getPage(num).then(page => {
+        const canvas = document.getElementById('pdf-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        const viewport = page.getViewport({ scale: 1.3 });
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        const renderContext = {
+          canvasContext: ctx,
+          viewport: viewport
+        };
+        const renderTask = page.render(renderContext);
+        renderTask.promise.then(() => {
+          pdfRendering = false;
+          if (pdfPagePending !== null) {
+            renderPDFPage(pdfPagePending);
+            pdfPagePending = null;
+          }
+        });
+        document.getElementById('pdf-page-indicator').textContent = `📄 第 ${num} / ${pdfDoc.numPages} 頁 (揮手即可手勢翻頁)`;
+      });
+    }
+
+    function queueRenderPDFPage(num) {
+      if (pdfRendering) {
+        pdfPagePending = num;
+      } else {
+        renderPDFPage(num);
       }
+    }
+
+    function nextPDFPage() {
+      if (!pdfDoc) return;
+      if (pdfPageNum >= pdfDoc.numPages) return;
+      pdfPageNum++;
+      queueRenderPDFPage(pdfPageNum);
+    }
+
+    function prevPDFPage() {
+      if (!pdfDoc) return;
+      if (pdfPageNum <= 1) return;
+      pdfPageNum--;
+      queueRenderPDFPage(pdfPageNum);
     }
 
     function loadWebSlide() {
@@ -630,9 +732,14 @@
         if (currentSlideIdx < slides.length - 1) {
           currentSlideIdx++;
           updateSlide();
+          showTriggerEffect("👉 下一頁 (Next Slide)");
         }
+      } else if (currentSlideMode === 'pdf') {
+        nextPDFPage();
+        showTriggerEffect(`👉 PDF 翻頁 (${pdfPageNum}/${pdfDoc ? pdfDoc.numPages : '?'})`);
+      } else {
+        showTriggerEffect("👉 傳送下一頁指令 (Next)");
       }
-      showTriggerEffect("👉 下一頁 (Next Slide)");
     }
 
     function prevSlide() {
@@ -641,9 +748,14 @@
         if (currentSlideIdx > 0) {
           currentSlideIdx--;
           updateSlide();
+          showTriggerEffect("👈 上一頁 (Prev Slide)");
         }
+      } else if (currentSlideMode === 'pdf') {
+        prevPDFPage();
+        showTriggerEffect(`👈 PDF 翻頁 (${pdfPageNum}/${pdfDoc ? pdfDoc.numPages : '?'})`);
+      } else {
+        showTriggerEffect("👈 傳送上一頁指令 (Prev)");
       }
-      showTriggerEffect("👈 上一頁 (Prev Slide)");
     }
 
     // Keyboard support
