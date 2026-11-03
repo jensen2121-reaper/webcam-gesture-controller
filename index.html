@@ -278,8 +278,13 @@
       <span>🖐️ AI 手勢無障礙簡報控制器</span>
       <span class="badge">Teachable Machine × TF.js</span>
     </h1>
-    <div style="font-size: 0.85rem; color: var(--text-muted);">
-      國立東華大學 人工智慧概論 · 期中專題
+    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+      <span id="bridge-status-pill" class="badge" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; border-color: #475569;" title="雙擊執行 start-desktop-bridge.cmd 即可啟動全域簡報筆模式">
+        🖥️ 本機 PPT 簡報筆：未連線
+      </span>
+      <div style="font-size: 0.85rem; color: var(--text-muted);">
+        國立東華大學 人工智慧概論 · 期中專題
+      </div>
     </div>
   </header>
 
@@ -291,9 +296,35 @@
         <span id="cooldown-timer"></span>
       </div>
 
+      <!-- Presentation Source Switcher -->
+      <div style="display: flex; gap: 8px; margin-bottom: 4px; align-items: center; flex-wrap: wrap;">
+        <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">簡報模式：</span>
+        <button class="btn btn-secondary" id="tab-default" onclick="switchSlideMode('default')" style="font-size: 0.8rem; padding: 5px 12px; background: var(--primary);">📌 專題自帶簡報</button>
+        <button class="btn btn-secondary" id="tab-pdf" onclick="switchSlideMode('pdf')" style="font-size: 0.8rem; padding: 5px 12px;">📄 載入本機 PDF 簡報</button>
+        <button class="btn btn-secondary" id="tab-web" onclick="switchSlideMode('web')" style="font-size: 0.8rem; padding: 5px 12px;">🌐 嵌入 Google 簡報 / Canva 網址</button>
+      </div>
+
+      <!-- Toolbar for Custom Slide (PDF or Web URL) -->
+      <div id="custom-slide-toolbar" style="display: none; margin-bottom: 10px; background: var(--card-bg); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); font-size: 0.85rem;">
+        <div id="pdf-inputs" style="display: none; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <span>選擇本機 PDF 簡報檔案：</span>
+          <input type="file" id="pdf-upload" accept="application/pdf" onchange="loadCustomPDF(this.files)" style="font-size: 0.8rem;">
+          <span style="color: var(--text-muted); font-size: 0.75rem;">(選取後即可在下方瀏覽器內直接翻閱)</span>
+        </div>
+        <div id="web-inputs" style="display: none; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <input type="text" id="web-slide-url" placeholder="貼上 Google 簡報公開連結或 Canva 嵌入網址 (例: https://docs.google.com/presentation/d/.../embed)" style="flex: 1; padding: 6px 10px; min-width: 260px;">
+          <button class="btn" onclick="loadWebSlide()" style="font-size: 0.8rem; padding: 6px 12px;">載入嵌入</button>
+        </div>
+      </div>
+
+      <!-- External Presentation View (PDF / Iframe) -->
+      <div id="external-slide-box" style="display: none; height: 480px; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); background: #000; margin-bottom: 14px;">
+        <iframe id="external-frame" src="" style="width: 100%; height: 100%; border: none;"></iframe>
+      </div>
+
       <div class="slide-container" id="current-slide">
         <div>
-          <span class="slide-badge" id="slide-num">SLIDE 01 / 05</span>
+          <span class="slide-badge" id="slide-num">SLIDE 01 / 06</span>
           <h2 class="slide-title" id="slide-title">專題名稱：AI 手勢無障礙簡報系統</h2>
           <div class="slide-body" id="slide-content">
             <p>這是一個基於 Google Teachable Machine 與 TensorFlow.js 的無接觸式手勢辨識應用。</p>
@@ -320,7 +351,10 @@
         • <span>👉 掌心向右</span>：切換至下一頁 (Next)<br>
         • <span>👈 掌心向左</span>：切換至上一頁 (Previous)<br>
         • <span>👍 比讚 / 拳頭</span>：重點聚焦 / 暫停 (Confirm)<br>
-        • <span>待機狀態</span>：雙手自然垂放或背景無手勢（防誤觸門檻 85%）
+        • <span>待機狀態</span>：雙手自然垂放或背景無手勢（防誤觸門檻 80%）<br><br>
+        <b>🖥️ 如何控制外部 PowerPoint / Keynote / PDF？</b><br>
+        1. 雙擊執行專案資料夾下的 <code>start-desktop-bridge.cmd</code>。<br>
+        2. 當頂部顯示「🖥️ 本機 PPT 簡報筆：已連線」時，將外部簡報全螢幕播放，隔空揮手即自動按真實鍵盤翻頁！
       </div>
     </section>
 
@@ -393,7 +427,7 @@
     // Slide Data
     const slides = [
       {
-        num: "SLIDE 01 / 05",
+        num: "SLIDE 01 / 06",
         title: "專題名稱：AI 手勢無障礙簡報系統",
         content: `
           <p>這是一個基於 Google Teachable Machine 與 TensorFlow.js 的無接觸式手勢辨識應用。</p>
@@ -405,7 +439,7 @@
         `
       },
       {
-        num: "SLIDE 02 / 05",
+        num: "SLIDE 02 / 06",
         title: "問題背景與痛點分析",
         content: `
           <p>在傳統的演講或教學簡報場合中，講者常受限於特定硬體：</p>
@@ -417,7 +451,7 @@
         `
       },
       {
-        num: "SLIDE 03 / 05",
+        num: "SLIDE 03 / 06",
         title: "AI 技術架構與模型訓練",
         content: `
           <p>本系統結合現代邊緣 AI（Edge AI）技術流程：</p>
@@ -429,19 +463,33 @@
         `
       },
       {
-        num: "SLIDE 04 / 05",
+        num: "SLIDE 04 / 06",
         title: "防誤觸把關機制（Debounce）",
         content: `
           <p>呼應課程核心精神「通過也是它說的」，避免 AI 誤觸或抖動造成連續跳頁：</p>
           <ul>
-            <li><b>雙重門檻過濾</b>：手勢信心度必須連續高於 <b>85%</b> 才會判定觸發。</li>
+            <li><b>雙重門檻過濾</b>：手勢信心度必須連續高於 <b>80%</b> 才會判定觸發。</li>
             <li><b>動作冷卻期（Cooldown）</b>：動作成功觸發後，強制鎖定 <b>1.5 秒</b> 冷卻，防止單一手勢連續觸發十幾次。</li>
             <li><b>負樣本把關</b>：加入「自然待機（Neutral）」類別，濾除背景雜訊與無手勢狀態。</li>
           </ul>
         `
       },
       {
-        num: "SLIDE 05 / 05",
+        num: "SLIDE 05 / 06",
+        title: "如何在其他簡報中應用此程式？",
+        content: `
+          <p>為了使手勢控制不限於本網頁，本專案提供兩大擴充整合方案：</p>
+          <ul>
+            <li><b>方案 A：直接嵌入客製化簡報（免裝軟體）</b>：
+              點選網頁上方「📄 載入本機 PDF 簡報」或「🌐 嵌入 Google 簡報 / Canva 網址」，即可在同一個瀏覽器視窗中隔空翻閱自己的簡報。</li>
+            <li><b>方案 B：系統級全域簡報筆（PowerPoint / PDF 實體翻頁）</b>：
+              執行專案內的 <code>start-desktop-bridge.cmd</code>，透過 Python 本機後台將手勢直接映射為 Windows 實體鍵盤（PageDown/右箭頭），支援全螢幕 Microsoft PowerPoint 演講！</li>
+            <li><b>靈活切換</b>：講者無論在教室、研討會或遠端視訊會議，皆可依設備自由選擇。</li>
+          </ul>
+        `
+      },
+      {
+        num: "SLIDE 06 / 06",
         title: "專題結論與未來展望",
         content: `
           <p>總結專案成果與未來延伸潛力：</p>
@@ -455,6 +503,93 @@
     ];
 
     let currentSlideIdx = 0;
+    let currentSlideMode = 'default';
+
+    function switchSlideMode(mode) {
+      currentSlideMode = mode;
+      const defaultBtn = document.getElementById('tab-default');
+      const pdfBtn = document.getElementById('tab-pdf');
+      const webBtn = document.getElementById('tab-web');
+      const toolbar = document.getElementById('custom-slide-toolbar');
+      const pdfInputs = document.getElementById('pdf-inputs');
+      const webInputs = document.getElementById('web-inputs');
+      const defaultSlide = document.getElementById('current-slide');
+      const extBox = document.getElementById('external-slide-box');
+
+      defaultBtn.style.background = '#334155';
+      pdfBtn.style.background = '#334155';
+      webBtn.style.background = '#334155';
+
+      if (mode === 'default') {
+        defaultBtn.style.background = 'var(--primary)';
+        toolbar.style.display = 'none';
+        defaultSlide.style.display = 'flex';
+        extBox.style.display = 'none';
+      } else if (mode === 'pdf') {
+        pdfBtn.style.background = 'var(--primary)';
+        toolbar.style.display = 'block';
+        pdfInputs.style.display = 'flex';
+        webInputs.style.display = 'none';
+        defaultSlide.style.display = 'none';
+        extBox.style.display = 'block';
+      } else if (mode === 'web') {
+        webBtn.style.background = 'var(--primary)';
+        toolbar.style.display = 'block';
+        pdfInputs.style.display = 'none';
+        webInputs.style.display = 'flex';
+        defaultSlide.style.display = 'none';
+        extBox.style.display = 'block';
+      }
+    }
+
+    function loadCustomPDF(files) {
+      if (files && files[0]) {
+        const fileURL = URL.createObjectURL(files[0]);
+        document.getElementById('external-frame').src = fileURL;
+        showTriggerEffect("📄 已載入自訂 PDF 簡報");
+      }
+    }
+
+    function loadWebSlide() {
+      const url = document.getElementById('web-slide-url').value.trim();
+      if (url) {
+        document.getElementById('external-frame').src = url;
+        showTriggerEffect("🌐 已嵌入線上簡報網址");
+      }
+    }
+
+    // Desktop Bridge (PowerPoint / PDF global key controller)
+    let isBridgeConnected = false;
+    async function checkDesktopBridge() {
+      try {
+        const res = await fetch("http://127.0.0.1:8765/ping", { mode: "cors" });
+        if (res.ok) {
+          isBridgeConnected = true;
+          const pill = document.getElementById("bridge-status-pill");
+          pill.textContent = "🖥️ 本機 PPT 簡報筆：已連線 (已就緒)";
+          pill.style.background = "rgba(16, 185, 129, 0.25)";
+          pill.style.color = "#34d399";
+          pill.style.borderColor = "#10b981";
+          return;
+        }
+      } catch (e) {}
+      isBridgeConnected = false;
+      const pill = document.getElementById("bridge-status-pill");
+      pill.textContent = "🖥️ 本機 PPT 簡報筆：未連線";
+      pill.style.background = "rgba(148, 163, 184, 0.15)";
+      pill.style.color = "#94a3b8";
+      pill.style.borderColor = "#475569";
+    }
+
+    setInterval(checkDesktopBridge, 3000);
+    checkDesktopBridge();
+
+    function sendBridgeCommand(cmd) {
+      if (isBridgeConnected) {
+        fetch(`http://127.0.0.1:8765/${cmd}`, { mode: "cors" }).catch(() => {});
+      }
+    }
+
     function updateSlide() {
       const s = slides[currentSlideIdx];
       document.getElementById('slide-num').textContent = s.num;
@@ -463,19 +598,25 @@
     }
 
     function nextSlide() {
-      if (currentSlideIdx < slides.length - 1) {
-        currentSlideIdx++;
-        updateSlide();
-        showTriggerEffect("👉 切換至下一頁 (Next Slide)");
+      sendBridgeCommand("next");
+      if (currentSlideMode === 'default') {
+        if (currentSlideIdx < slides.length - 1) {
+          currentSlideIdx++;
+          updateSlide();
+        }
       }
+      showTriggerEffect("👉 下一頁 (Next Slide)");
     }
 
     function prevSlide() {
-      if (currentSlideIdx > 0) {
-        currentSlideIdx--;
-        updateSlide();
-        showTriggerEffect("👈 切換至上一頁 (Prev Slide)");
+      sendBridgeCommand("prev");
+      if (currentSlideMode === 'default') {
+        if (currentSlideIdx > 0) {
+          currentSlideIdx--;
+          updateSlide();
+        }
       }
+      showTriggerEffect("👈 上一頁 (Prev Slide)");
     }
 
     // Keyboard support

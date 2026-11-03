@@ -120,13 +120,20 @@ Teachable Machine 採用了在 ImageNet 上預先訓練好的 **MobileNet** 作�
 
 ---
 
-## 七、 結論與未來展望（Conclusion & Future Work）
+## 七、 結論與延伸應用實踐（Conclusion & Applications）
 
 本專題成功驗證了以邊緣人工智慧實現「零硬體成本、高隱私性、流暢直覺」之無障礙簡報系統的可行性。
 
-### 未來擴充方向：
-1. **外部簡報軟體聯動**：利用 Node.js 或桌面端程式（如 RobotJS），將辨識結果直接模擬成作業系統層級的鍵盤 PageDown / PageUp 事件，直接控制 PowerPoint 與 PDF 閱讀器。
-2. **物聯網智慧家居（IoT）**：將模型轉移至 Raspberry Pi 或 ESP32-CAM，擴展至隔空控制電燈、風扇與窗簾開關。
+### 7.1 外部真實簡報軟體實作支援（PowerPoint / Keynote / PDF）：
+為了讓本系統不僅能控制網頁內自帶簡報，亦能無縫應用於真實研討會與教學環境，本專案進一步實作了兩大擴充模組：
+1. **本機全域簡報筆模式（Desktop Bridge）**：
+   撰寫輕量級 `desktop_bridge.py` 守護行程，採用純 Python 標準函式庫調用 Windows API（`keybd_event`），在瀏覽器手勢判定通過時，即時發送實體 `Right Arrow`（下一頁）或 `Left Arrow`（上一頁）鍵盤事件。無論使用者使用 Microsoft PowerPoint、Adobe Acrobat 還是 Canva 全螢幕播放，皆可達到實體簡報筆般隔空翻頁效果。
+2. **網頁自訂簡報嵌入模式（Embedded Presentation）**：
+   在前端提供 PDF 本機檔案讀取與 Google Slides / Canva 嵌入連結支援，講者在單一瀏覽器分頁中即可載入客製化簡報並以手勢翻閱。
+
+### 7.2 未來擴充方向：
+- **物聯網智慧家居（IoT）**：將模型轉移至 Raspberry Pi 或 ESP32-CAM，擴展至隔空控制電燈、風扇與窗簾開關。
+- **無菌醫療環境操作**：醫師於手術室進行無接觸影像報告檢視與切換。
 
 ---
 
